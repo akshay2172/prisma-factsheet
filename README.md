@@ -1,4 +1,4 @@
-# akshay2172/prisma-factsheet
+# prisma-factsheet
 
 Prisma Factsheet is a small Go service that computes portfolio “factsheets” from seeded holdings and market prices. It includes an ETL pipeline that generates:
 
