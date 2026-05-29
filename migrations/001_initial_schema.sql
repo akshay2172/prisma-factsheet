@@ -205,3 +205,112 @@ INSERT INTO securities (ticker, exchange, name, asset_class, country_code, secto
     ('7203',  'TYO',    'Toyota Motor Corporation',     'equity', 'JP', 'Consumer Discretionary',  'JPY'),
     ('005930','KRX',    'Samsung Electronics',          'equity', 'KR', 'Information Technology', 'KRW'),
     ('BABA',  'NYSE',   'Alibaba Group Holding',        'equity', 'CN', 'Consumer Discretionary',  'USD');
+
+-- ------------------------------------------------------------
+-- HOLDINGS (seed for ETL: NAV / exposures / performance)
+-- ------------------------------------------------------------
+
+-- Single holdings snapshot. ETL uses MAX(as_of_date) <= requested date.
+INSERT INTO holdings (product_id, security_id, as_of_date, weight, quantity, market_value)
+SELECT
+    '10000000-0000-0000-0000-000000000001'::uuid                           AS product_id,
+    s.id                                                                       AS security_id,
+    DATE '2024-01-15'                                                         AS as_of_date,
+    v.weight                                                                   AS weight,
+    v.quantity                                                                 AS quantity,
+    v.market_value                                                             AS market_value
+FROM securities s
+JOIN (
+    VALUES
+        ('AAPL',   0.095,  120.000000,  180000.00),
+        ('MSFT',   0.090,  100.000000,  190000.00),
+        ('AMZN',   0.075,  250.000000,  170000.00),
+        ('GOOGL',  0.085,  140.000000,  175000.00),
+        ('NVDA',   0.110,   10.000000,  220000.00),
+        ('META',   0.070,   45.000000,   130000.00),
+        ('TSM',    0.085,   200.000000,  160000.00),
+        ('ASML',   0.075,    20.000000,  210000.00),
+        ('NOVO-B', 0.055,  600.000000,  140000.00),
+        ('7203',   0.040,  1800.000000,   120000.00),
+        ('005930', 0.020,  6000.000000,   100000.00),
+        ('BABA',   0.100,  250.000000,  160000.00)
+) v(ticker, weight, quantity, market_value)
+  ON s.ticker = v.ticker;
+
+-- ------------------------------------------------------------
+-- PRICE HISTORY (seed synthetic prices for ETL: NAV calc)
+-- ------------------------------------------------------------
+
+-- ETL uses MAX(price_history.date) <= requested date for each security.
+-- We provide a full daily series from 2023-12-01 to 2024-01-15.
+
+WITH tickers AS (
+    SELECT id, ticker FROM securities WHERE ticker IN (
+        'AAPL','MSFT','AMZN','GOOGL','NVDA','META','TSM','ASML','NOVO-B','7203','005930','BABA'
+    )
+), base AS (
+    -- Reasonable starting adj_close baselines (synthetic but realistic-ish).
+    SELECT
+        t.id,
+        CASE t.ticker
+            WHEN 'AAPL'   THEN 190
+            WHEN 'MSFT'   THEN 420
+            WHEN 'AMZN'   THEN 160
+            WHEN 'GOOGL'  THEN 140
+            WHEN 'NVDA'   THEN 500
+            WHEN 'META'   THEN 350
+            WHEN 'TSM'    THEN 120
+            WHEN 'ASML'   THEN 650
+            WHEN 'NOVO-B' THEN 105
+            WHEN '7203'   THEN 210
+            WHEN '005930' THEN 74000
+            WHEN 'BABA'   THEN 85
+            ELSE 100
+        END AS base_price,
+        CASE t.ticker
+            WHEN '005930' THEN 0.020   -- KRW volatility scale
+            ELSE 0.010
+        END AS vol_scale
+    FROM tickers t
+), dates AS (
+    SELECT d::date AS date
+    FROM generate_series(DATE '2023-12-01', DATE '2024-01-15', INTERVAL '1 day') AS g(d)
+), price_matrix AS (
+    SELECT
+        b.id AS security_id,
+        dt.date,
+        -- day index to create a deterministic mild trend
+        (dt.date - DATE '2023-12-01')::int AS day_idx,
+        b.base_price,
+        b.vol_scale
+    FROM base b
+    CROSS JOIN dates dt
+)
+INSERT INTO price_history (
+    id, security_id, date, open, high, low, close, adj_close, volume, source
+)
+SELECT
+    uuid_generate_v4()                                                    AS id,
+    pm.security_id                                                        AS security_id,
+    pm.date                                                               AS date,
+    -- Synthetic OHLC based on adj_close trajectory
+    (pm.base_price * (1 + pm.day_idx * 0.0015 + (sin(pm.day_idx / 3.0) * pm.vol_scale)))                         AS open,
+    (pm.base_price * (1 + pm.day_idx * 0.0015 + (sin(pm.day_idx / 3.0) * pm.vol_scale) + (0.008 * pm.vol_scale))) AS high,
+    (pm.base_price * (1 + pm.day_idx * 0.0015 + (sin(pm.day_idx / 3.0) * pm.vol_scale) - (0.008 * pm.vol_scale))) AS low,
+    (pm.base_price * (1 + pm.day_idx * 0.0015 + (sin(pm.day_idx / 3.0) * pm.vol_scale) + (0.002 * pm.vol_scale))) AS close,
+    (pm.base_price * (1 + pm.day_idx * 0.0015 + (sin(pm.day_idx / 3.0) * pm.vol_scale)))                         AS adj_close,
+    -- Volume: just a stable-ish synthetic number
+    (CASE
+        WHEN (pm.security_id::text LIKE '%00000000-0000-0000-0000-000000000%') THEN 1000000
+        ELSE 900000
+     END)::bigint                                                       AS volume,
+    'seed_synthetic'                                                     AS source
+FROM price_matrix pm
+ON CONFLICT (security_id, date) DO UPDATE SET
+    open      = EXCLUDED.open,
+    high      = EXCLUDED.high,
+    low       = EXCLUDED.low,
+    close     = EXCLUDED.close,
+    adj_close = EXCLUDED.adj_close,
+    volume    = EXCLUDED.volume,
+    fetched_at = NOW();
