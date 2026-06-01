@@ -61,13 +61,6 @@ Ensure you have the following installed:
 - Docker + Docker Compose
 - Git
 
-## Environment configuration
-
-This project uses environment variables for database/service configuration. A template is provided in `.env.example`.
-
-```bash
-cp .env.example .env
-```
 
 Key variables:
 
@@ -80,26 +73,6 @@ Key variables:
 | `DB_NAME` | Database name | `prisma_factsheet` |
 | `REDIS_ADDR` | Redis connection string | `redis:6379` |
 | `PORT` | API server port | `8080` |
-
-## Docker Compose quick start
-
-The `docker-compose.yml` file provisions:
-
-- **PostgreSQL** (`prisma_pg`) — runs SQL in `./migrations` on first startup
-- **Redis** (`prisma_redis`)
-- **API** (`prisma_api`)
-
-Start the infrastructure:
-
-```bash
-docker compose up -d
-```
-
-### Service health / initialization
-
-- Postgres uses `pg_isready` health checks.
-- Redis uses `redis-cli ping` health checks.
-- The API starts only after both dependencies are healthy.
 
 
 ## Getting started
@@ -182,8 +155,6 @@ Start the API:
 go run ./cmd/api
 ```
 
-The server listens on:
-- `PORT` env var if set, otherwise `8080`
 
 ## API endpoints
 
@@ -232,4 +203,4 @@ This ensures ETL steps can compute NAV/exposures/performance without requiring e
 
 ## License
 
-MIT (or replace with your preferred license).
+MIT 
