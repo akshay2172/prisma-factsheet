@@ -202,8 +202,8 @@ INSERT INTO securities (ticker, exchange, name, asset_class, country_code, secto
     ('TSM',   'NYSE',   'Taiwan Semiconductor Mfg',     'equity', 'TW', 'Information Technology', 'USD'),
     ('ASML',  'NASDAQ', 'ASML Holding NV',              'equity', 'NL', 'Information Technology', 'USD'),
     ('NOVO-B','CPH',    'Novo Nordisk A/S',             'equity', 'DK', 'Health Care',             'DKK'),
-    ('7203',  'TYO',    'Toyota Motor Corporation',     'equity', 'JP', 'Consumer Discretionary',  'JPY'),
-    ('005930','KRX',    'Samsung Electronics',          'equity', 'KR', 'Information Technology', 'KRW'),
+    ('7203.T',  'TYO',    'Toyota Motor Corporation',     'equity', 'JP', 'Consumer Discretionary',  'JPY'),
+    ('005930.KS','KRX',    'Samsung Electronics',          'equity', 'KR', 'Information Technology', 'KRW'),
     ('BABA',  'NYSE',   'Alibaba Group Holding',        'equity', 'CN', 'Consumer Discretionary',  'USD');
 
 -- ------------------------------------------------------------
